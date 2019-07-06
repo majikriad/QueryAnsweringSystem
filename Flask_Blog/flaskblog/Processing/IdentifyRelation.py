@@ -8,6 +8,8 @@ rawtext=''
 #========================================FUNCTIONS============================
 def get_typed_quest(inputText):
     rawtext=inputText
+
+
     
 #def get_fetched_ressource
 
