@@ -15,17 +15,18 @@ rawtext = ''
 
 
 def extract_entities(rawtext):
-    doc = nlp(u""+rawtext)
-    # sents = list(doc.sents)
-    # if len(sents) > 1 :
-    #     try:
-    #         raise NameError('Double Sentence')
-    #     except NameError:
-    #         print('There is more than one sentence !')
-    #         raise
+    doc = nlp(u""+rawtext.title())
+    sents = list(doc.sents)
+    if len(sents) > 1 :
+        try:
+            raise NameError('Double Sentence')
+        except NameError:
+            print('There is more than one sentence !')
+            raise
     NamedEntityList = []
     NamedEntityLabel = []
     NamedEntityDescription = []
+    
     for word in doc.ents:
         NamedEntityList.append(word.text)
         NamedEntityLabel.append(word.label_)
@@ -33,15 +34,16 @@ def extract_entities(rawtext):
         NamedEntityDescription.append(ExplanationList)
     if len(NamedEntityList) > 2:
         merge_entities(NamedEntityList)
+    
+    print(NamedEntityLabel)
+    print(NamedEntityList)
+    print(NamedEntityDescription)
     return NamedEntityList, NamedEntityLabel, NamedEntityDescription
 
-    # print(NamedEntityLabel)
-    # print(NamedEntityList)
-    # print(NamedEntityDescription)
+
 
 
 def merge_entities(NamedEntityList):
-
     NamedEntityListMerged = ''.join(NamedEntityList)
     print(NamedEntityListMerged)
 
