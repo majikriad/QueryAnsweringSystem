@@ -15,14 +15,15 @@ rawtext = ''
 
 
 def extract_entities(rawtext):
+
     doc = nlp(u""+rawtext.title())
-    sents = list(doc.sents)
-    if len(sents) > 1 :
-        try:
-            raise NameError('Double Sentence')
-        except NameError:
-            print('There is more than one sentence !')
-            raise
+    # sents = list(doc.sents)
+    # if len(sents) > 1 :
+    #     try:
+    #         raise NameError('Double Sentence')
+    #     except NameError:
+    #         print('There is more than one sentence !')
+    #         raise
     NamedEntityList = []
     NamedEntityLabel = []
     NamedEntityDescription = []
