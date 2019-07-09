@@ -10,6 +10,11 @@ def Extract():
      if request.method == 'POST':
           rawtext=request.form['rawtext']
           IdentifyRelation.get_typed_quest(rawtext)  
-          IdentifyRessource.extract_entities(rawtext)
+          NamedEntityList, NamedEntityLabel, NamedEntityDescription=IdentifyRessource.extract_entities(rawtext)
+          NamedEntityListMerged=[]
+          if len(NamedEntityList) > 2:
+               NamedEntityListMerged=IdentifyRessource.merge_entities(NamedEntityList)
+          IdentifyRessource.exact_match(NamedEntityListMerged,NamedEntityList)
+          IdentifyRessource.redirect(NamedEntityList)
+          IdentifyRessource.check_string_similarity(rawtext)
           return render_template('index.html',rawtext=rawtext)#,custom_tokens=custom_tokens)
-     

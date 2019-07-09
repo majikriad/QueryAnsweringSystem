@@ -1,5 +1,6 @@
 import spacy
 from .dataset import dataset
+from .IdentifyRessource import extract_entities
 nlp = spacy.load('en_core_web_sm')
 
 rawtext=''
