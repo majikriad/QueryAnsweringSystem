@@ -10,10 +10,10 @@
 # rawtext=''
 # PredicatList=dataset().get_Predicates()
 # # Create a list of WH questions
-# whquestion = ["where","when", "who"]
-# whenquestion =['time','date','year','month','day','hour','minute','seconds']
-# wherequestion=['place','location','city','country','state','town']
-# who='PERSON'
+whquestion = ["where","when", "who"]
+whenquestion =['time','date','year','month','day','hour','minute','seconds']
+wherequestion=['place','location','city','country','state','town']
+who='PERSON'
 # #========================================FUNCTIONS============================
 # def get_typed_quest(inputText):
 #     rawtext=inputText
@@ -21,14 +21,13 @@
 
 # #def get_fetched_ressource
 
-# def get_Expected_Answer_type(rawtext):
-#     doc=nlp(u""+rawtext)
+def get_Expected_Answer_type(rawtext):
+    doc=nlp(u""+rawtext)
 
-#     for token in doc:
-#         if token.text in whquestion:
-#             print("we expect "+token.text+" question")
-#             EAT=token.text
-#     return EAT
+    for token in doc:
+        if token.text in whquestion:
+            EAT=token.text
+    return EAT
 
 # def remove_stpwords_from_query(rawtext):
 #     doc=nlp(u""+rawtext)
