@@ -6,12 +6,14 @@ from SPARQLWrapper import SPARQLWrapper, JSON
 from .dataset import dataset
 from fuzzywuzzy import process
 from spacy import displacy
+import spotlight
 import re
 # ============================== Initialisation ==============================================================
 nlp = spacy.load("en_core_web_sm")
 
+ 
 whquestion = ["Where", "What", "When", "Who"]
-whenquestion =['time','date','year','month','day','hour','minute','seconds']
+whenquestion =['time','date','year','month','day','hour','minute']
 wherequestion=['place','location','city','country','state','town']
 
 rawtext = ''
@@ -22,6 +24,7 @@ Predicat = dataset().get_Predicates()
 
 #############################################EXTRACT ENTITIES ##################################
 
+
 def get_Expected_Answer_type(rawtext):
     EAT=""
     doc=nlp(u""+rawtext.title())
@@ -29,28 +32,53 @@ def get_Expected_Answer_type(rawtext):
         if token.text in whquestion:
             EAT=token.text
     return EAT
-
-def extract_entities_Manualy(rawtext):
+def extract_entities_Spacy(rawtext):
     SpacyEntity=[]
     SpacyEntityLabel=[]
-    PropertyCandidate = []
-    PropertyCandidatelemma = []
-    doc = nlp(u""+rawtext.title())
+    doc = nlp(u""+rawtext)
+    for token in doc:
+        if token.check_flag(IS_STOP):
+            string = r"\b{} \b".format(token.text)
+            string2 = r"\b{}\b".format(token.text)
+            rawtext = re.sub(string, "", rawtext)
+            rawtext = re.sub(string2, "", rawtext)       
     for ent in doc.ents:
         SpacyEntity.append(ent.text)
         SpacyEntityLabel.append(ent.label_)
-    stopwords = open("stopwords.txt", "w")
-    for token in doc:
-        print(token.text, token.lemma_, token.pos_, token.tag_, token.dep_,
-              token.shape_, token.is_alpha, token.is_stop)
-        if ((token.tag_ == "NNP" or token.tag_ == "NOUN") and (token.dep_ == "nsubj") or (token.dep_ == "nsubjpass") ) or ((token.pos_ == "VERB" or token.pos == "NOUN") and (token.dep_ == "ROOT")) and not (token.check_flag(IS_STOP)):
-            PropertyCandidate.append(token.text.lower())
-            PropertyCandidatelemma.append(token.lemma_)
+        for token in doc:
+            string = r"\b{} \b".format(ent.text)
+            string2 = r"\b{}\b".format(ent.text)
+            rawtext = re.sub(string, "", rawtext)
+            rawtext = re.sub(string2, "", rawtext)
+    SpacyProperty=rawtext.split()
+  
+    if len(SpacyProperty)>1:
+        for i in range(1,len(SpacyProperty)):
+            SpacyProperty[i]=SpacyProperty[i].title()
+    SpacyPropertyMerged=[]
+    SpacyPropertyMerged=merge_Property(SpacyProperty)                  
+    print("############EXTRACTING WITH SPACY ENTITY########")
+    print(rawtext)
+    print("############ENTITY ############")
+    print(SpacyEntity)
+    print("############PROPRETY############")
+    print(SpacyProperty)
     
-       
+    return SpacyEntity,SpacyEntityLabel,SpacyPropertyMerged
+        
 
+
+       
+def extract_entities_Manualy(rawtext):
+    PropertyCandidate = []
+    PropertyCandidatelemma = []
     doc = nlp(u""+rawtext)
+
+    stopwords = open("stopwords.txt", "w")  
     for token in doc:
+        if ((token.tag_ == "NNP" or token.tag_ == "NOUN") and (token.dep_ == "nsubj") or (token.dep_ == "nsubjpass") ) or ((token.pos_ == "VERB" or token.pos == "NOUN") and (token.dep_ == "ROOT")) and not (token.check_flag(IS_STOP)):
+            PropertyCandidate.append(token.text)
+            PropertyCandidatelemma.append(token.lemma_)
         if token.check_flag(IS_STOP) or token.dep_ == "prep" or token.pos_ == "ADP":
             stopwords.write(token.text+"\n")
             # il remplace aussi l'espace
@@ -58,61 +86,38 @@ def extract_entities_Manualy(rawtext):
             string2 = r"\b{}\b".format(token.text)
             rawtext = re.sub(string, "", rawtext)
             rawtext = re.sub(string2, "", rawtext)
-
-
     possiblecandidate=PropertyCandidate    
     NamedEntityListMainly = []
-    rawtext=rawtext.title()
-    NamedEntityListMainly = rawtext.split()
+    doc2 = nlp(u""+rawtext)
+    for chunk in doc2.noun_chunks:
+        NamedEntityListMainly.append(chunk.root.text)
     NamedEntityMerged = []
-    # NamedEntityMerged = merge_entities(NamedEntityListMainly)
     PropertyMerged = []
-    Entitytodelete = []
-    # PropertyMerged = merge_Property(PropertyCandidate)
-    # print(NamedEntityListMainly)
-    # print(PropertyCandidate)
+    
     for Entity in NamedEntityListMainly:
-        # print(NamedEntityListMainly)
-        # print("Mon entité ")
-        # print(Entity)
         Ecore1=0
-        Ecore2=0  
-        Ecore1=(get_matches(Entity, Resources)[0][1])
-        # print(str(Ecore1)+"  Entity Dakhel ressource")
-        Ecore2=(get_matches(Entity, Predicat)[0][1])
-        # print(str(Ecore2)+"  Entity Dakhel Predicat")
-        if Ecore1 < Ecore2:    
-            PropertyCandidate.append(Entity)
-            Entitytodelete.append(Entity)
+        Ecore1=get_matches(Entity, Resources)[0][1]
+        EntitytoSelect=""
+        if (Ecore1>79):
+            EntitytoSelect=get_matches(Entity, Resources)[0][0]
+            NamedEntityListMainly.remove(Entity)
+            NamedEntityListMainly.append(EntitytoSelect)
     
-    NamedEntityListMainly=Diff(NamedEntityListMainly,Entitytodelete)
-    Propertytodelete=[]
-    #NamedEntityMerged = merge_entities(NamedEntityListMainly)
-    for properties in PropertyCandidate:
-        # print("ma propriété ")
-        # print(properties)
-        Score1=0
-        Score2=0  
-        Score1=(get_matches(properties, Predicat)[0][1])
-        # print(str(Score1)+" Score1 Property Dakhel Predicat")
-        Score2=(get_matches(properties, Resources)[0][1])
-        # print(str(Score2)+" Score2 Property Dakhel Resource")
-        if Score1 < Score2:    
-            NamedEntityListMainly.append(properties)
-            Propertytodelete.append(Entity)
-    PropertyCandidate=Diff(PropertyCandidate,Propertytodelete)        
+    for Entity in NamedEntityListMainly:
+        Ecore2=0
+        Ecore2=get_matches(Entity, Predicat)[0][1]
+        EntitytoRemove=""
+        if (Ecore2>=90):
+            EntitytoRemove=get_matches(Entity, Predicat)[0][0]
+            NamedEntityListMainly.remove(Entity)
+            PropertyCandidate.append(EntitytoRemove)
+    PropertyCandidate[0]=PropertyCandidate[0].lower()
     NamedEntityListMainly=removeDuplicates(NamedEntityListMainly)
-    PropertyCandidate=removeDuplicates(PropertyCandidate)          
+    PropertyCandidate=removeDuplicates(PropertyCandidate)       
     NamedEntityMerged = merge_entities(NamedEntityListMainly)
-    
     PropertyMerged = merge_Property(PropertyCandidate)
-    print("RESULTAT FINAL ? ")
-    print(NamedEntityListMainly)
-    print(NamedEntityMerged)
-    print(PropertyCandidate)
-    print(PropertyMerged)
-    print(SpacyEntity)
-    return PropertyCandidate, PropertyMerged,possiblecandidate,NamedEntityListMainly, NamedEntityMerged, SpacyEntity, SpacyEntityLabel
+    
+    return PropertyCandidate, PropertyMerged,possiblecandidate,NamedEntityListMainly, NamedEntityMerged
 
 def Diff(li1, li2): 
     return (list(set(li1) - set(li2))) 
@@ -164,92 +169,109 @@ def exact_match_entity(NamedEntityListMainly, NamedEntityMerged,SpacyEntity):
     if len(NamedEntityMerged)!=0:
         Query_label(Entity)     
         redirects(Entity)          
-    # for Entities in NamedEntityListMainly:
-    #     Entities=str(Entities)   
-    #     check_ambiguity(Entities)
+    for Entities in NamedEntityListMainly:
+        Entities=str(Entities)   
+        check_ambiguity(Entities)
 
-# def exact_match_property(PropertyCandidate, PropertyMerged,possiblecandidate,EAT,Entity):
-     
-#     if (EAT=="Where"):
-#         Properties=wherequestion
-#         Query_where(Entity,Properties)
-#     elif (EAT=="When"):
-#         Properties=whenquestion
-#         Query_when(Entity,Properties)
-#     elif (EAT=="Who"):
-#         Query_Name(Entity)       
-#     elif (EAT=="") and len(PropertyMerged)!=0:
-#         Query_Property_Merged(Entity,PropertyMerged)
+def exact_match_property(PropertyCandidate, PropertyMerged,possiblecandidate,EAT,SpacyEntity):
+    
+    Entity=""
+    for Entity in SpacyEntity:
+        Entity=SpacyEntity.pop()
+        Entity=Entity.replace(' ','_')
+    
+    
+    if (EAT=="Where"):
+        Properties=wherequestion
+        Query_where(Entity,Properties)
+    elif (EAT=="When"):
+        Properties=whenquestion
+        Query_when(Entity,Properties)
+    elif (EAT=="Who"):
+        Query_Name(Entity)       
+    elif (EAT=="") and len(PropertyMerged)!=0:
+        Query_Property_Merged(Entity,PropertyMerged)
         
                 
-# def Query_when(Entity,Properties):    
-    
-#     for Property in Properties:
-#          sparql.setQuery("""
-#     PREFIX dbr:<http://dbpedia.org/resource/> PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#> PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#> PREFIX dbo:<http://dbpedia.org/ontology/> PREFIX foaf:<http://xmlns.com/foaf/0.1/>
-#     SELECT ?label
-#     WHERE { 
-#     {<http://dbpedia.org/resource/"""+Entity+"""> <http://dbpedia.org/ontology/"""+Property+"""> ?label }
-#     UNION
-#     {<http://dbpedia.org/resource/"""+Entity+"""> <http://dbpedia.org/property/"""+Property+"""> ?label }
-#     }
-#     """)
-#     sparql.setReturnFormat(JSON)
-#     results = sparql.query().convert()
-#     for result in results["results"]["bindings"]:
-#         print(result["label"]["value"])
-# def Query_where(Entity,Properties):
-    
-#     for Property in Properties:
-#        sparql.setQuery("""
-#     PREFIX dbr:<http://dbpedia.org/resource/> PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#> PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#> PREFIX dbo:<http://dbpedia.org/ontology/> PREFIX foaf:<http://xmlns.com/foaf/0.1/>
-#     SELECT ?label
-#     WHERE { 
-#     {<http://dbpedia.org/resource/"""+Entity+"""> <http://dbpedia.org/ontology/"""+Property+"""> ?label }
-#     UNION
-#     {<http://dbpedia.org/resource/"""+Entity+"""> <http://dbpedia.org/property/"""+Property+"""> ?label }
-#     }
-#     """)
-#     sparql.setReturnFormat(JSON)
-#     results = sparql.query().convert()
-#     for result in results["results"]["bindings"]:
-#         print(result["label"]["value"])         
+def Query_when(Entity,Properties):    
+    print("RAhou yedkhol Hna ou pas when")
+    for Property in Properties:
+        Property=Property.title()
+        sparql.setQuery("""
+        PREFIX dbr:<http://dbpedia.org/resource/> PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#> PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#> PREFIX dbo:<http://dbpedia.org/ontology/> PREFIX foaf:<http://xmlns.com/foaf/0.1/>
+        SELECT ?label
+        WHERE{  
+        {<http://dbpedia.org/resource/"""+Entity+"""> ?property ?label}
+        UNION
+        {<http://dbpedia.org/resource/"""+Entity+"""> ?property ?label}
+        FILTER regex(?property, "^.*"""+Property+"""*")
+        }
+        """)
+        sparql.setReturnFormat(JSON)
+        results = sparql.query().convert()
+        for result in results["results"]["bindings"]:
+            print(result["label"]["value"])
+def Query_where(Entity,Properties):
+    print("RAhou yedkhol Hna ou pas where")
+    for Property in Properties:
+        Property=Property.title()    
+        sparql.setQuery("""
+        PREFIX dbr:<http://dbpedia.org/resource/> PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#> PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#> PREFIX dbo:<http://dbpedia.org/ontology/> PREFIX foaf:<http://xmlns.com/foaf/0.1/>
+        SELECT ?label
+        WHERE{  
+        {<http://dbpedia.org/resource/"""+Entity+"""> ?property ?label}
+        UNION
+        {<http://dbpedia.org/resource/"""+Entity+"""> ?property ?label}
+        FILTER regex(?property, "^.*"""+Property+"""*")
+        }
+        """)
+        sparql.setReturnFormat(JSON)
+        results = sparql.query().convert()
+        for result in results["results"]["bindings"]:
+            print(result["label"]["value"])         
 
-# def Query_Property_Merged(Entity,PropertyMerged):
-#     Property=str(PropertyMerged) 
-#     sparql.setQuery("""
-#     PREFIX dbr:<http://dbpedia.org/resource/> PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#> PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#> PREFIX dbo:<http://dbpedia.org/ontology/> PREFIX foaf:<http://xmlns.com/foaf/0.1/>
-#     SELECT ?label
-#     WHERE { 
-#     {<http://dbpedia.org/resource/"""+Entity+"""> <http://dbpedia.org/ontology/"""+Property+"""> ?label }
-#     UNION
-#     {<http://dbpedia.org/resource/"""+Entity+"""> <http://dbpedia.org/property/"""+Property+"""> ?label }
-#     }
-#     """)
-#     sparql.setReturnFormat(JSON)
-#     results = sparql.query().convert()
-#     for result in results["results"]["bindings"]:
-#         print(result["label"]["value"])
+def Query_Property_Merged(Entity,PropertyMerged):
+    Property=str(PropertyMerged) 
+    print(Property)
+    sparql.setQuery("""
+    PREFIX dbr:<http://dbpedia.org/resource/> PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#> PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#> PREFIX dbo:<http://dbpedia.org/ontology/> PREFIX foaf:<http://xmlns.com/foaf/0.1/>
+    SELECT ?label
+    WHERE{  
+    {<http://dbpedia.org/resource/"""+Entity+"""> ?property ?label}
+    UNION
+    {<http://dbpedia.org/resource/"""+Entity+"""> ?property ?label}
+    FILTER regex(?property, "^.*"""+Property+"""*")
+    }
+    """)
+    sparql.setReturnFormat(JSON)
+    results = sparql.query().convert()
+    for result in results["results"]["bindings"]:
+        print(result["label"]["value"])
 
-# def Query_Name(Entity):
-#     sparql.setQuery("""
-#     PREFIX dbr:<http://dbpedia.org/resource/> PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#> PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#> PREFIX dbo:<http://dbpedia.org/ontology/> PREFIX foaf:<http://xmlns.com/foaf/0.1/>
-#     SELECT ?name
-#     WHERE { 
-#     {<http://dbpedia.org/resource/"""+Entity+"""> <http://xmlns.com/foaf/0.1/name> ?name }
-#     """)
-#     sparql.setReturnFormat(JSON)
-#     results = sparql.query().convert()
-#     for result in results["results"]["bindings"]:
-#         print(result["name"]["value"])   
+def Query_Name(Entity):
+    sparql.setQuery("""
+    PREFIX dbr:<http://dbpedia.org/resource/> PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#> PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#> PREFIX dbo:<http://dbpedia.org/ontology/> PREFIX foaf:<http://xmlns.com/foaf/0.1/>
+    SELECT ?name
+    WHERE { 
+    {<http://dbpedia.org/resource/"""+Entity+"""> <http://xmlns.com/foaf/0.1/name> ?name }
+    """)
+    sparql.setReturnFormat(JSON)
+    results = sparql.query().convert()
+    for result in results["results"]["bindings"]:
+        print(result["name"]["value"])   
                  
 def Query_label(Entity):
     Entity=Entity.title()
     sparql.setQuery("""
-    PREFIX dbr:<http://dbpedia.org/resource/> PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#> PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#> PREFIX dbo:<http://dbpedia.org/ontology/> PREFIX foaf:<http://xmlns.com/foaf/0.1/>
+    PREFIX dbr:<http://dbpedia.org/resource/> 
+    PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#> 
+    PREFIX rdfs:<http://www.w3.org/2000/01/rdf-schema#> 
+    PREFIX dbo:<http://dbpedia.org/ontology/> 
+    PREFIX foaf:<http://xmlns.com/foaf/0.1/>
     SELECT ?label
-    WHERE { <http://dbpedia.org/resource/"""+Entity+"""> rdfs:label ?label }
-
+    WHERE { <http://dbpedia.org/resource/"""+Entity+"""> rdfs:label ?label 
+    filter (lang(?label) = "en")   
+     }
     """)
     sparql.setReturnFormat(JSON)
     results = sparql.query().convert()
@@ -262,8 +284,8 @@ def Query_label(Entity):
 
 def redirects(Entity):
     # Entity=Entity.title()
-    # print("rani f redirect")
-    # print(Entity)
+    print("rani f redirect")
+    print(Entity)
     sparql.setQuery("""
                 PREFIX dbr:<http://dbpedia.org/resource/>
                 PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#>
@@ -271,9 +293,10 @@ def redirects(Entity):
                 PREFIX dbo:<http://dbpedia.org/ontology/>
                 PREFIX foaf:<http://xmlns.com/foaf/0.1/>
                 SELECT ?redirect
-                WHERE{
-                <http://dbpedia.org/resource/"""+Entity+"""> <http://dbpedia.org/ontology/wikiPageRedirects>  ?redirect.}
-
+                WHERE{?x <http://dbpedia.org/ontology/wikiPageRedirects> ?redirect
+                FILTER regex(?redirect, "^.*"""+Entity+"""*")
+               }
+                LIMIT 10
         """)
     sparql.setReturnFormat(JSON)
 
@@ -300,7 +323,7 @@ def check_ambiguity(Entity):
                     UNION
                 {<http://dbpedia.org/resource/"""+Entity+"""_(disambiguation)> <http://dbpedia.org/ontology/wikiPageDisambiguates>  ?disambiguation.}
                 }
-
+                LIMIT 10
         """)
     sparql.setReturnFormat(JSON)
     results = sparql.query().convert()
